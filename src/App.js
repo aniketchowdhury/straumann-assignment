@@ -1,66 +1,100 @@
-import "./App.css";
-import { useEffect, useState } from "react";
-import RangeSlider from "./RangeSlider";
-import { useFetchAge } from "./hooks/fetchAge";
+import { useState, createContext, useRef } from "react";
+import { Modal } from "./Modal";
+import { Swimlane } from "./Swimlane";
+import { Task } from "./Task";
 
-function App() {
-  const headers = ["Id", "Name", "Gender", "Age", "Address", "Phone"];
-  const URL = `http://hapi.fhir.org/baseR4/Patient?_pretty=true`;
-  const [minVal, setMinVal] = useState(0);
-  const [maxVal, setMaxVal] = useState(0);
-  const actualData = useFetchAge(URL, minVal, maxVal);
-  const [filteredData, setFilteredData] = useState(actualData);
-  useEffect(() => {
-    let dataCopy = [];
-    actualData.forEach((item) => {
-      let temp = { ...item };
-      temp.age = item?.age === 0 ? "NA" : item.age;
-      if (item.age >= minVal && item.age <= maxVal) {
-        dataCopy.push(temp);
+export const Context = createContext(null);
+export default function App() {
+  const arrItem = ["Open", "Progress", "Review", "Closed"];
+  const [modal, openModal] = useState(false);
+  const dragItem = useRef();
+  const dragOverItem = useRef();
+  const [tasks, setTasks] = useState([
+    {
+      desc: "task 1 description",
+      title: "Task1",
+      points: "3",
+      state: "open",
+    },
+    {
+      desc: "task 2 description",
+      title: "Task2",
+      points: "3",
+      state: "closed",
+    },
+  ]);
+
+  const dragStart = (e) => {
+    dragItem.current = e.target.id;
+    e.dataTransfer.setData("text", e.target.id);
+    console.log("dragStart", e.target);
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    dragOverItem.current = e.currentTarget.id;
+    console.log(
+      "DragAndDropDemo() :: handleOnDragOver() :: e.target.name=" +
+        e.target.id +
+        " e.target.value=" +
+        e.target.value
+    );
+  };
+
+  const handleSubmit = (obj) => {
+    openModal(false);
+    setTasks([...tasks, { ...obj }]);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    const taskName = e.dataTransfer.getData("text");
+    console.log("DROPPED", e.target.id, taskName);
+    let taskCopy = [...tasks];
+    taskCopy.forEach((task) => {
+      if (task.title === taskName && arrItem.includes(e.target.id)) {
+        task.state = e.target.id.toLowerCase();
       }
     });
-    setFilteredData(dataCopy);
-  }, [actualData, maxVal, minVal]);
-  const getRange = (min, max) => {
-    setMinVal(min);
-    setMaxVal(max);
+    setTasks(taskCopy);
   };
+
+  console.log("***tasks", tasks);
+
   return (
-    <>
-      <RangeSlider getRange={getRange} />
+    <Context.Provider value={{ tasks, setTasks }}>
       <div className="mainContainer">
-        <h4>Scrollable Table</h4>
-        <table className="tableMain">
-          <th className="tableHeader">
-            {headers.map((item) => (
-              <td
-                style={{ border: "1px solid black", padding: "10px" }}
-                className="tableCells"
-                key={item}
-              >
-                {item}
-              </td>
-            ))}
-          </th>
-          <tbody style={{ border: "1px solid black" }}>
-            {filteredData.length > 0 &&
-              filteredData.map((item) => (
-                <tr
-                  style={{ border: "1px solid black" }}
-                  key={item.id}
-                  className="tableForm"
-                >
-                  {item &&
-                    Object.keys(item).map((x) => (
-                      <td className="tableCells">{item[x]}</td>
-                    ))}
-                </tr>
-              ))}
-          </tbody>
-        </table>
+        <h3>AGILE BOARD</h3>
+        <button onClick={() => openModal(true)}>Create new task</button>
+        <div className="headers">
+          {arrItem.map((item) => (
+            <h6>{item}</h6>
+          ))}
+        </div>
+        <div className="swimlanes">
+          {arrItem.map((lane) => (
+            <Swimlane
+              id={lane}
+              onDrop={handleDrop}
+              handleOnDragOver={handleDragOver}
+            >
+              {tasks.map(
+                (item) =>
+                  lane.toLowerCase() === item.state && (
+                    <Task
+                      {...item}
+                      id={item.title}
+                      // dragEnter={dragEnter}
+                      dragStart={dragStart}
+                      // drop={drop}
+                    />
+                  )
+              )}
+            </Swimlane>
+          ))}
+        </div>
+        {modal && <Modal onSubmit={handleSubmit} />}
       </div>
-    </>
+    </Context.Provider>
   );
 }
-
-export default App;
